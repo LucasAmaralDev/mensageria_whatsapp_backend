@@ -1,11 +1,18 @@
 const express = require("express");
-const client = require("./whatsapp");
+const { client, informes } = require("./whatsapp");
 const cors = require("cors");
+const Server = require("socket.io");
 
-const zapClient = client.client;
+const zapClient = client;
 const app = express();
 app.use(express.json());
 app.use(cors());
+const http = require("http").createServer(app);
+const serverSocket = Server(http, {
+  cors: {
+    origin: "*",
+  },
+});
 
 const cacheImages = {};
 const profilePhoto = {};
@@ -106,6 +113,66 @@ app.get("/profilePhoto/:id", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+serverSocket.on("connection", (socket) => {
+  // Emitindo o status do cliente
+  client.on("ready", async () => {
+    socket.emit("status", "ready");
+  });
+
+  client.on("message", async (message) => {
+    const chats = await zapClient.getChats();
+    const firstsChats = chats.slice(0, 40);
+    socket.emit("getChats", firstsChats);
+  });
+
+  // Emitindo a verificação do status do cliente
+  socket.on("verificar status", () => {
+    socket.emit("status", informes.status);
+  });
+
+  // Emitindo informações da conta conectada
+  socket.on("getMyInfo", async () => {
+    while (informes.status !== "ready") {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    try {
+      const me = await zapClient.info;
+      socket.emit("getMyInfo", me);
+    } catch (error) {
+      console.log("erro");
+    }
+  });
+
+  socket.on("getContacts", async () => {
+    while (informes.status !== "ready") {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    const contacts = await zapClient.getContacts();
+    socket.emit("getContacts", contacts);
+  });
+
+  socket.on("getChats", async () => {
+    while (informes.status !== "ready") {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    const chats = await zapClient.getChats();
+    const firstsChats = chats.slice(0, 30);
+    socket.emit("getChats", firstsChats);
+  });
+
+  socket.on("getChatMessages", async (id) => {
+    while (informes.status !== "ready") {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    const chat = await zapClient.getChatById(id);
+    const messages = await chat.fetchMessages({
+      limit: 12,
+    });
+    socket.emit("getChatMessages", messages);
+  });
+});
+
+http.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
 });

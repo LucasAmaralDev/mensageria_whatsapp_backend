@@ -4,23 +4,18 @@ const client = new Client({
   authStrategy: new LocalAuth({ clientId: "Luc" }),
 });
 
+const informes = {
+  status: "not ready",
+};
+
 client.on("qr", (qr) => {
+  informes.status = "waiting for qr code";
   qrcode.generate(qr, { small: true });
 });
 
 client.on("ready", async () => {
   console.log("Client is ready!");
-
-  //get last chats
-  // const chats = await client.getChats();
-
-  //get last messages
-  // const messages = await chats[0].fetchMessages({limit: 10});
-  // for (let message of messages) {
-  //     console.log(message.body);
-  // }
-
-  //get my info
+  informes.status = "ready";
 });
 
 client.on("message", async (message) => {
@@ -30,4 +25,7 @@ client.on("message", async (message) => {
 
 client.initialize();
 
-exports.client = client;
+module.exports = {
+  client,
+  informes,
+};
